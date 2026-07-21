@@ -15,3 +15,7 @@ router.get('/health', () => {
     service: 'yapindo-task-management-api',
   }
 })
+
+const AuthController = () => import('#controllers/auth_controller')
+
+router.post('/register', [AuthController, 'register'])
