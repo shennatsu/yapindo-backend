@@ -1,16 +1,12 @@
 import { DateTime } from 'luxon'
-import { BaseModel, column } from '@adonisjs/lucid/orm'
+import { BaseModel, column, hasMany } from '@adonisjs/lucid/orm'
+import type { HasMany } from '@adonisjs/lucid/types/relations'
 import { compose } from '@adonisjs/core/helpers'
 import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
 import hash from '@adonisjs/core/services/hash'
 import type { UserRole } from '#enums/user_role'
+import Task from '#models/task'
 
-/**
- * Adds password hashing (on create/update) and a static
- * `User.verifyCredentials(email, password)` lookup, backed by the
- * scrypt hasher. See app/enums/user_role.ts for why `role` is a
- * shared type rather than a bare string here.
- */
 const AuthFinder = withAuthFinder(() => hash.use('scrypt'), {
   uids: ['email'],
   passwordColumnName: 'password',
@@ -31,6 +27,11 @@ export default class User extends compose(BaseModel, AuthFinder) {
 
   @column()
   declare role: UserRole
+
+  @hasMany(() => Task, {
+    foreignKey: 'assigneeId',
+  })
+  declare tasks: HasMany<typeof Task>
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
