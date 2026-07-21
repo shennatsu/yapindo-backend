@@ -19,3 +19,4 @@ router.get('/health', () => {
 const AuthController = () => import('#controllers/auth_controller')
 
 router.post('/register', [AuthController, 'register'])
+router.post('/login', [AuthController, 'login'])
