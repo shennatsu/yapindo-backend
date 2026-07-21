@@ -22,7 +22,9 @@ const ProjectsController = () => import('#controllers/projects_controller')
 
 router.post('/register', [AuthController, 'register'])
 router.post('/login', [AuthController, 'login'])
+const AiCommandsController = () => import('#controllers/ai_commands_controller')
 
+router.post('/ai/command', [AiCommandsController, 'store']).use([middleware.auth()])
 router.get('/projects', [ProjectsController, 'index']).use([middleware.auth()])
 router.get('/projects/:id', [ProjectsController, 'show']).use([middleware.auth()])
 router.get('/projects/:id/tasks', [ProjectsController, 'tasks']).use([middleware.auth()])
