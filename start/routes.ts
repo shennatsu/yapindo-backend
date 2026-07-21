@@ -25,6 +25,7 @@ router.post('/login', [AuthController, 'login'])
 
 router.get('/projects', [ProjectsController, 'index']).use([middleware.auth()])
 router.get('/projects/:id', [ProjectsController, 'show']).use([middleware.auth()])
+router.get('/projects/:id/tasks', [ProjectsController, 'tasks']).use([middleware.auth()])
 router
   .post('/projects', [ProjectsController, 'store'])
   .use([middleware.auth(), middleware.role(['admin'])])

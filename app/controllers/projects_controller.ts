@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import Project from '#models/project'
+import Task from '#models/task'
 import { createProjectValidator } from '#validators/create_project_validator'
 import { updateProjectValidator } from '#validators/update_project_validator'
 
@@ -67,15 +68,31 @@ export default class ProjectsController {
   /**
    * DELETE /projects/:id
    *
-   * Admin only. Note: the Commit 10 migration's created_by FK uses
-   * RESTRICT, not this table's own concern - but a project with
-   * existing tasks referencing project_id will hit the same kind of
-   * FK protection once the tasks table exists (later commit).
+   * Admin only. Cascades to the project's tasks at the DB level
+   * (see Commit 14's tasks migration, project_id FK ON DELETE CASCADE).
    */
   async destroy({ params, response }: HttpContext) {
     const project = await Project.findOrFail(params.id)
     await project.delete()
 
     return response.noContent()
+  }
+
+  /**
+   * GET /projects/:id/tasks
+   *
+   * Available to any authenticated role (Bagian 3). Confirms the
+   * project exists first so a nonexistent id returns 404, not an
+   * empty-array 200 indistinguishable from a real, task-less project.
+   */
+  async tasks({ params, response }: HttpContext) {
+    await Project.findOrFail(params.id)
+
+    const tasks = await Task.query()
+      .where('projectId', params.id)
+      .preload('assignee')
+      .orderBy('id', 'asc')
+
+    return response.ok({ data: tasks })
   }
 }
