@@ -3,12 +3,6 @@ import geminiConfig from '#config/gemini'
 
 /**
  * Thin wrapper around the Gemini API client.
- *
- * Deliberately generic at this stage - generateText() sends a prompt
- * (with an optional system instruction) and returns raw text. The
- * task-CRUD-specific system prompt and structured-JSON response
- * parsing are added on top of this in a later commit, kept separate
- * so client wiring and prompt design are independently reviewable.
  */
 class GeminiService {
   #client = new GoogleGenAI({ apiKey: geminiConfig.apiKey })
@@ -21,6 +15,43 @@ class GeminiService {
     })
 
     return response.text ?? ''
+  }
+
+  /**
+   * Sends a prompt constrained to a specific JSON output shape via
+   * Gemini's native structured-output mode, and parses the result.
+   *
+   * systemInstruction is passed as its own dedicated API config
+   * field, never concatenated into `contents` - the system/user
+   * role boundary is enforced by the API itself, which is a
+   * meaningfully stronger guarantee than string concatenation.
+   *
+   * temperature is fixed at 0 for this call specifically (not a
+   * GeminiService-wide default) - structured extraction benefits
+   * from deterministic output, unlike free-text generation.
+   *
+   * Note: JSON.parse below is not yet wrapped in the graceful
+   * degrade-to-400 handling the AI Command feature ultimately needs
+   * for a malformed/truncated response - that's added by the caller
+   * in the response validator, kept as its own commit.
+   */
+  async generateStructuredJson<T>(
+    prompt: string,
+    systemInstruction: string,
+    responseSchema: object
+  ): Promise<T> {
+    const response = await this.#client.models.generateContent({
+      model: geminiConfig.model,
+      contents: prompt,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema,
+        temperature: 0,
+      },
+    })
+
+    return JSON.parse(response.text ?? '') as T
   }
 }
 
