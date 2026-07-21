@@ -33,5 +33,7 @@ export default await Env.create(new URL('../', import.meta.url), {
   DB_DATABASE: Env.schema.string(),
 
   JWT_SECRET: Env.schema.string(),
+  GEMINI_API_KEY: Env.schema.string(),
+  GEMINI_MODEL: Env.schema.string.optional(),
   JWT_EXPIRES_IN: Env.schema.string.optional(),
 })

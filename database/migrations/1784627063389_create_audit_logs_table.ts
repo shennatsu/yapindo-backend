@@ -18,7 +18,12 @@ export default class extends BaseSchema {
       table.string('action').notNullable()
       table.jsonb('request_payload').notNullable()
       table.jsonb('response_payload').nullable()
-      table.enum('status', ['success', 'failed'], { useNative: false, enumName: 'audit_logs_status_enum' }).notNullable()
+      table
+        .enum('status', ['success', 'failed'], {
+          useNative: false,
+          enumName: 'audit_logs_status_enum',
+        })
+        .notNullable()
       table.text('failed_reason').nullable()
 
       table.timestamp('created_at').notNullable()
