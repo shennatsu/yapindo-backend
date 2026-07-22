@@ -23,10 +23,26 @@ export default class AuditLog extends BaseModel {
   @column()
   declare action: string
 
-  @column()
+  @column({
+    prepare: (value: any) => (value ? JSON.stringify(value) : value),
+    consume: (value: any) => {
+      if (typeof value === 'string') {
+        try { return JSON.parse(value) } catch {}
+      }
+      return value
+    }
+  })
   declare requestPayload: Record<string, unknown>
 
-  @column()
+  @column({
+    prepare: (value: any) => (value ? JSON.stringify(value) : value),
+    consume: (value: any) => {
+      if (typeof value === 'string') {
+        try { return JSON.parse(value) } catch {}
+      }
+      return value
+    }
+  })
   declare responsePayload: Record<string, unknown> | null
 
   @column()
