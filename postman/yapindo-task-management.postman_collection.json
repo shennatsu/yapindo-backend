@@ -8,7 +8,8 @@
     { "key": "base_url", "value": "http://localhost:3333" },
     { "key": "token", "value": "" },
     { "key": "project_id", "value": "1" },
-    { "key": "task_id", "value": "1" }
+    { "key": "task_id", "value": "1" },
+    { "key": "new_project_id", "value": "" }
   ],
   "item": [
     {
@@ -74,6 +75,19 @@
         },
         {
           "name": "Create Project (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.id) {",
+                  "    pm.collectionVariables.set('new_project_id', body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -95,7 +109,7 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": "{{base_url}}/projects/{{project_id}}",
+            "url": "{{base_url}}/projects/{{new_project_id}}",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Updated Project Name\",\n  \"description\": \"Updated description\"\n}"
@@ -107,7 +121,7 @@
           "request": {
             "method": "DELETE",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": "{{base_url}}/projects/{{project_id}}"
+            "url": "{{base_url}}/projects/{{new_project_id}}"
           }
         },
         {

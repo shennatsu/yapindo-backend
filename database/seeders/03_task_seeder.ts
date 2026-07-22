@@ -54,6 +54,14 @@ export default class extends BaseSeeder {
           priority: 'low',
           assigneeId: null,
         },
+        {
+          projectId: websiteProject.id,
+          title: 'Optimize database queries',
+          description: 'Cek slow query di halaman dashboard.',
+          status: 'todo',
+          priority: 'high',
+          assigneeId: budi.id,
+        },
       ]
     )
   }
