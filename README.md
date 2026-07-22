@@ -1,191 +1,141 @@
 # Yapindo Task Management API
 
-REST API for a task management system with role-based access control
-(admin / user) and an AI-assisted natural language command endpoint
-(`POST /ai/command`) that translates free-text instructions into
-validated, transactional CRUD operations on tasks.
+A REST API for task management with an AI-powered natural-language command endpoint, built for the Yapindo Jaya Abadi backend technical test.
 
-Built for the Yapindo Jaya Abadi backend technical test.
+## Table of Contents
+
+- [Tech Stack](#tech-stack)
+- [Setup & Installation](#setup--installation)
+- [Environment Configuration](#environment-configuration)
+- [Running the Application](#running-the-application)
+- [Database Seeding](#database-seeding)
+- [AI Prompt Design](#ai-prompt-design)
+- [Why Redis?](#why-redis)
+- [API Documentation](#api-documentation)
+- [Project Structure](#project-structure)
 
 ## Tech Stack
 
-| Concern        | Choice                    |
-| -------------- | -------------------------- |
-| Framework      | AdonisJS 7 (TypeScript)    |
-| Database       | PostgreSQL (via Lucid ORM) |
-| Authentication | JWT (`jsonwebtoken`)       |
-| AI Integration | Gemini API (`@google/genai`) |
-| Validation     | VineJS                     |
-
-> **Note on framework version:** the technical test brief references
-> AdonisJS 6. AdonisJS 7 is the current stable major release on npm
-> and is used here instead — starting a new project on a superseded
-> major version would itself be a poor engineering decision. The
-> application architecture the test evaluates (controllers, models,
-> migrations, middleware, validators) is unchanged between the two.
-
-> **Note on Redis:** the brief lists Redis/MongoDB as an optional
-> NoSQL component ("Redis / MongoDB"). Nothing in this project's
-> functional requirements needs a cache or a NoSQL store — every
-> requirement (users, projects, tasks, audit logs, AI command
-> execution) is relational data with real referential-integrity needs
-> (foreign keys, transactions), which is exactly what PostgreSQL is
-> for. Adding Redis with nothing to cache would be exactly the kind
-> of "unused dependency" this codebase otherwise avoids throughout.
-
-## Prerequisites
-
-- **Node.js >= 24** (enforced by AdonisJS 7's toolchain)
-- **PostgreSQL** (a local instance, or Docker — see below)
-- A **Gemini API key** ([Google AI Studio](https://aistudio.google.com/app/apikey))
+| Concern | Choice |
+|---|---|
+| Framework | AdonisJS 6 (TypeScript) |
+| Database | PostgreSQL |
+| Cache | Redis |
+| Authentication | JWT (`jsonwebtoken`) |
+| ORM | Lucid |
+| AI | Gemini API (`@google/genai`) |
 
 ## Setup & Installation
 
+**Prerequisites:** Node.js 20+, PostgreSQL 14+, Redis 7+ (or Docker for either), npm.
+
 ```bash
-git clone https://github.com/shennatsu/yapindo-backend.git
-cd yapindo-backend
+git clone <this-repo-url>
+cd yapindo
 npm install
 ```
 
-### Environment configuration
+## Environment Configuration
+
+Copy `.env.example` to `.env` and fill in the values:
 
 ```bash
 cp .env.example .env
-node ace generate:key
 ```
 
-`node ace generate:key` writes a fresh `APP_KEY` into `.env` automatically.
+Most variables are self-explanatory from `.env.example`'s inline comments. Two require action before the app will boot:
 
-Open `.env` and fill in the two secrets that have no default:
+- **`JWT_SECRET`** — has no safe default and must be a real random value. Generate one with:
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+  ```
+- **`GEMINI_API_KEY`** — get a free key from [Google AI Studio](https://aistudio.google.com/apikey). `GEMINI_MODEL` defaults to `gemini-flash-latest`, an alias that always points at Google's current stable Flash model, so it won't break when a specific model version is eventually retired.
 
-| Variable         | Required | Notes                                                                 |
-| ---------------- | -------- | ---------------------------------------------------------------------- |
-| `JWT_SECRET`     | Yes      | Any long random string. Generate one: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
-| `GEMINI_API_KEY` | Yes      | From [Google AI Studio](https://aistudio.google.com/app/apikey). `POST /ai/command` will fail without it. |
-
-Every other variable in `.env.example` already has a working local-dev default — see the table below for what each one does.
-
-<details>
-<summary>Full environment variable reference</summary>
-
-| Variable          | Default (dev)                | Purpose                                                          |
-| ------------------ | ----------------------------- | ------------------------------------------------------------------ |
-| `PORT`             | `3333`                        | HTTP server port                                                 |
-| `HOST`             | `localhost`                   | HTTP server bind host                                            |
-| `NODE_ENV`         | `development`                 | Affects CORS default, SQL debug logging, error verbosity         |
-| `LOG_LEVEL`        | `info`                        | Pino logger level                                                |
-| `APP_KEY`          | *(generated)*                 | AdonisJS internal encryption key — set via `node ace generate:key` |
-| `APP_URL`          | `http://localhost:3333`       | Base URL used internally for absolute link generation            |
-| `APP_NAME`         | `yapindo-task-management`     | Logger name tag                                                  |
-| `CORS_ORIGIN`      | *(unset)*                     | Comma-separated allowlist. Unset = allow-all in dev, block-all in prod |
-| `DB_HOST`          | `localhost`                   | PostgreSQL host                                                  |
-| `DB_PORT`          | `5432`                        | PostgreSQL port                                                  |
-| `DB_USER`          | `postgres`                    | PostgreSQL user                                                  |
-| `DB_PASSWORD`      | `postgres`                    | PostgreSQL password                                              |
-| `DB_DATABASE`      | `yapindo_task_management`     | Database name — must exist before running migrations             |
-| `JWT_SECRET`       | *(none — required)*           | Signing secret for issued JWTs                                   |
-| `JWT_EXPIRES_IN`   | `1d`                          | Token lifetime (any [ms](https://github.com/vercel/ms) format)   |
-| `GEMINI_API_KEY`   | *(none — required)*           | Gemini API key                                                   |
-| `GEMINI_MODEL`     | `gemini-2.0-flash`            | Gemini model used for `POST /ai/command`                         |
-
-</details>
-
-### Database
-
-If you don't already have a local PostgreSQL instance, the fastest option is Docker:
+If you don't have a local PostgreSQL/Redis install, the fastest path is Docker:
 
 ```bash
-docker run --name yapindo-postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=yapindo_task_management \
-  -p 5432:5432 -d postgres:16
+docker run -d --name yapindo-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16-alpine
+docker run -d --name yapindo-redis -p 6379:6379 redis:7-alpine
 ```
 
-(Skip this if you already have PostgreSQL running natively — just make sure a database named `yapindo_task_management` exists and `.env`'s `DB_*` values match your instance.)
+Then set `DB_*` and `REDIS_*` in `.env` to match (defaults in `.env.example` already assume these exact containers).
 
-Run migrations, then seed:
+## Running the Application
 
 ```bash
 node ace migration:run
 node ace db:seed
+node ace serve --watch
 ```
 
-`db:seed` creates:
+The API is now available at `http://localhost:3333`.
 
-| Email                 | Password       | Role  |
-| ---------------------- | -------------- | ----- |
-| `admin@yapindo.test`   | `Password123!` | admin |
-| `budi@yapindo.test`    | `Password123!` | user  |
-| `citra@yapindo.test`   | `Password123!` | user  |
+## Database Seeding
 
-...plus 2 projects and 4 tasks with varied status/priority/assignee, so every endpoint (including `POST /ai/command`) has real data to work against immediately — no manual setup needed.
+`node ace db:seed` populates the database with enough data to exercise every endpoint immediately, with no manual setup:
 
-### Running the app
+- **3 users**: 1 admin (`admin@yapindo.test`), 2 regular users (`budi@yapindo.test`, `citra@yapindo.test`) — all with password `Password123!`
+- **2 projects**, both created by the seeded admin
+- **4 tasks** spread across both projects, with varied `status`/`priority` and one deliberately unassigned task
 
-```bash
-npm run dev
+The seeder is idempotent — re-running `db:seed` never creates duplicate rows.
+
+## AI Prompt Design
+
+`POST /ai/command` converts a natural-language instruction into task CRUD operations. The design has three layers, each addressing a specific requirement from the spec.
+
+### 1. Structured output, not "please reply in JSON"
+
+Rather than asking Gemini to format its reply as JSON via plain prompt text — which still allows markdown fences, commentary, or inconsistent formatting to slip in — the request uses Gemini's native `responseSchema` + `responseMimeType: 'application/json'` mode. The model's output is constrained to a specific shape at the API level, which is a meaningfully stronger guarantee against malformed output than string-based instructions alone.
+
+The schema is an **array** of command objects (not a single object), because a single user prompt can contain multiple instructions — exactly like the spec's own example ("buatkan task baru... Terus sekalian ubah status task ID 5..."). Each element has a required `action` field (`create_task` | `update_task` | `delete_task`) and the relevant fields for that action, all nullable except `action` itself (Gemini's structured output has no native per-action-variant required-field support, so completeness is checked server-side instead — see layer 2).
+
+### 2. The User-table guardrail — two independent layers
+
+The spec requires that the AI can never modify the `users` table. This is enforced twice, deliberately not relying on either layer alone:
+
+- **Structural (schema-level):** the response schema's `action` enum only contains `create_task`, `update_task`, and `delete_task` — there is no vocabulary for a user-table operation at all. Gemini is not just instructed not to touch `users`; it has no way to express that action in a schema-conformant response.
+- **Instructional (prompt-level):** the system prompt explicitly states the restriction, and instructs the model to silently omit any user-related part of an instruction rather than inventing a workaround.
+
+Constrained decoding is a model/API behavior, not a contractual guarantee — it can vary across model versions or have edge cases. So a third, independent layer exists in the response validator (`app/ai/task_command_validator.ts`), which only ever constructs `create_task`/`update_task`/`delete_task` commands from a closed `switch` statement — there is no code path in the entire request lifecycle capable of producing a user-table mutation from AI output, even if both prompt layers above were somehow bypassed.
+
+### 3. Safe parsing — turning AI unpredictability into a clean 400
+
+Two properties of LLM output are treated as expected, not exceptional:
+
+- **`null` means "not specified," never "set this column to null."** Because every per-action field is nullable at the schema level, an `update_task` that only means to change `title` may still come back with `"status": null`. The response validator strips every `null`-valued key from each command *before* any other check runs, so the executor only ever sees fields that were actually meant to change.
+- **One invalid command fails the whole batch, with a specific reason** (e.g. `"command #2 (update_task): missing required field \"task_id\""`), rather than silently dropping just the bad one and executing the rest. Silently dropping a garbled instruction from a multi-instruction prompt would leave the caller believing more happened than actually did.
+
+Execution itself runs inside a single Lucid-managed DB transaction (`db.transaction(async (trx) => {...})`), with existence checks (does this project/task/assignee actually exist?) running against the transaction's own client to avoid a check-then-mutate race. Any failure — a validation failure *or* a business-rule failure discovered mid-execution (e.g. an AI-hallucinated task ID) — throws, and Lucid's managed transaction rolls back everything in that batch automatically. Every call, success or failure, writes exactly one row to `audit_logs`, on the main connection (outside the transaction), so a rolled-back batch's own failure record survives independently of what it was recording.
+
+## Why Redis?
+
+Redis caches the three read-heavy, unauthenticated-by-role endpoints — `GET /projects`, `GET /projects/:id`, and `GET /projects/:id/tasks` — with a 60-second TTL as a safety net and explicit invalidation as the primary freshness mechanism. Every write that could make one of these stale invalidates exactly the keys it affects:
+
+- Creating a project invalidates only the list.
+- Updating a project invalidates the list and that project (not its task list, which a name/description change can't affect).
+- Deleting a project invalidates all three keys for it (its tasks cascade-delete at the DB level).
+- `POST /ai/command` invalidates the task-list cache for every distinct project a successful batch touched — the only place in the API that mutates tasks outside direct project CRUD, and the one non-obvious invalidation path in the system.
+
+## API Documentation
+
+Import `postman/yapindo-task-management.postman_collection.json` into Postman. Set the collection variable `base_url` to `http://localhost:3333` (default). Run the **Login** request first (either seeded admin or user credentials — see [Database Seeding](#database-seeding)); its test script automatically captures the returned JWT into the `{{token}}` collection variable, which every other request uses automatically via its Authorization header.
+
+## Project Structure
+
 ```
-
-Verify it's up:
-
-```bash
-curl http://localhost:3333/health
-# {"status":"ok","service":"yapindo-task-management-api"}
+app/
+  ai/              # System prompt, response schema, response validator
+  controllers/      # Thin HTTP handlers
+  enums/            # Shared role/status/priority values (DB + app agree)
+  exceptions/        # Business-rule exceptions
+  middleware/        # auth, role
+  models/            # Lucid models
+  services/           # JwtService, GeminiService, CacheService, TaskCommandExecutor
+  validators/        # VineJS request validators
+config/               # jwt, gemini, redis, database
+database/
+  migrations/
+  seeders/
+start/routes.ts        # Full route + middleware map
 ```
-
-For a production build:
-
-```bash
-npm run build
-cd build
-npm ci --omit=dev
-node bin/server.js
-```
-
-## API Overview
-
-Full request/response examples are in [`postman_collection.json`](./postman_collection.json) — import it into Postman and run `Login` first; the token is captured automatically for every request after that.
-
-| Method | Endpoint                | Auth           | Description                                  |
-| ------ | ------------------------ | -------------- | --------------------------------------------- |
-| POST   | `/register`              | none           | Create an account (`role`: `admin` or `user`, defaults to `user`) |
-| POST   | `/login`                 | none           | Authenticate, returns a JWT                   |
-| GET    | `/projects`              | any role       | List all projects                             |
-| GET    | `/projects/:id`          | any role       | Get one project                               |
-| GET    | `/projects/:id/tasks`    | any role       | List tasks in a project                       |
-| POST   | `/projects`              | **admin**      | Create a project                              |
-| PUT    | `/projects/:id`          | **admin**      | Update a project (full replace)               |
-| DELETE | `/projects/:id`          | **admin**      | Delete a project (cascades to its tasks)      |
-| POST   | `/ai/command`             | any role       | Natural-language task command (see below)     |
-
-Authenticated requests: `Authorization: Bearer <token>` (from `/login`'s response).
-
-## AI Command — Design Notes
-
-`POST /ai/command` takes a free-text instruction and turns it into one or more `create_task` / `update_task` / `delete_task` operations, executed atomically. The design has four layers, each doing one job:
-
-**1. System prompt + structured-output schema** (`app/ai/task_command_prompt.ts`)
-The Gemini call uses native structured-output mode (`responseSchema`, not "please return JSON" in the prompt text) — the model is *constrained* to the schema's shape, not just asked nicely. The schema's `action` field is an enum of exactly three values (`create_task`/`update_task`/`delete_task`); there is no schema vocabulary for a user-table action at all, so the model structurally cannot express "delete a user" even if the prompt asks for it. The system prompt *also* states the User-table prohibition explicitly, as a second, independent layer — not because the schema constraint is trusted to fail, but because defense-in-depth means neither layer is a single point of failure.
-
-One schema limitation drives the next layer's design: every per-action field is `nullable`, because Gemini's schema format has no way to express "these fields are required only when `action` is `create_task`." That means a `null` in the raw response is ambiguous — it always means "not specified by the instruction," never "the user explicitly wants this set to null."
-
-**2. Response validation** (`app/ai/task_command_validator.ts`)
-Before anything touches the database, the raw response is: (a) stripped of every `null`-valued field — treating null strictly as "not specified," per the schema limitation above; (b) re-checked against the same enum values the schema already constrains, not trusted blindly (the schema constraint is a strong signal, not a guarantee the API will honor forever); (c) checked for per-action completeness (`create_task` needs `project_id`+`title`; `update_task` needs `task_id` plus at least one other field; `delete_task` needs only `task_id`). One invalid command fails the *entire* batch with a specific reason — silently dropping a garbled instruction from a multi-instruction prompt would leave the caller believing it succeeded when it didn't.
-
-**3. Transactional execution** (`app/services/task_command_executor.ts`)
-Every command in the batch runs inside one `db.transaction()`. Existence checks (does this `project_id`/`task_id`/`assignee_id` actually exist?) run against the transaction's own client, so a check and its mutation always see the same snapshot — no race window. Any failure throws, and Lucid's managed transaction automatically rolls back everything in the batch — satisfying the spec's "one command fails, the whole request rolls back" requirement via the framework's own mechanism, not manual commit/rollback bookkeeping.
-
-**4. Audit logging** (`app/controllers/ai_commands_controller.ts`)
-Every call to this endpoint writes exactly one `audit_logs` row — success or failure — containing the original prompt, Gemini's raw response, and (on failure) a specific reason. This write happens *outside* the task-mutation transaction, on the main connection: if the task changes roll back, the record of that failure must not roll back with them, or the audit trail would erase its own failure history.
-
-## Postman Collection
-
-Import [`postman_collection.json`](./postman_collection.json). It includes:
-- Register (as admin and as user)
-- Login (auto-captures the JWT into a collection variable used by every other request)
-- Full project CRUD + task listing
-- The spec's own multi-instruction AI Command example
-- A deliberately-failing AI Command request (nonexistent `project_id`, demonstrates the 400 + rollback)
-- An adversarial AI Command request asking to delete a user (demonstrates the guardrail holds)
-
-Set the collection variable `base_url` if your server isn't on `http://localhost:3333`.

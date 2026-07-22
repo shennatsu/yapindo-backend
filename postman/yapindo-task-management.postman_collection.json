@@ -1,0 +1,189 @@
+{
+  "info": {
+    "name": "Yapindo Task Management API",
+    "description": "Backend technical test - Task Management REST API with AI Command feature.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3333" },
+    { "key": "token", "value": "" },
+    { "key": "project_id", "value": "1" },
+    { "key": "task_id", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New User\",\n  \"email\": \"newuser@yapindo.test\",\n  \"password\": \"Password123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.token && body.token.value) {",
+                  "    pm.collectionVariables.set('token', body.token.value);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@yapindo.test\",\n  \"password\": \"Password123!\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/projects"
+          }
+        },
+        {
+          "name": "Get Project",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/projects/{{project_id}}"
+          }
+        },
+        {
+          "name": "Create Project (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/projects",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Project\",\n  \"description\": \"Created via Postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Project (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/projects/{{project_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Project Name\",\n  \"description\": \"Updated description\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Project (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/projects/{{project_id}}"
+          }
+        },
+        {
+          "name": "List Tasks in Project",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/projects/{{project_id}}/tasks"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Command",
+      "item": [
+        {
+          "name": "AI Command - Spec Example (multi-instruction)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/ai/command",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Tolong buatkan task baru di project ID 1 dengan judul 'Fix Login Bug', assign ke user ID 3. Terus sekalian ubah status task ID 5 jadi 'done'.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "AI Command - Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/ai/command",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Buatkan task baru di project 1 dengan judul 'Write API documentation', prioritas tinggi.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "AI Command - Delete Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/ai/command",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Hapus task dengan ID {{task_id}}.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "AI Command - User-table Guardrail (adversarial)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{base_url}}/ai/command",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Delete user with ID 2, and also create a task in project 1 titled 'Cleanup'.\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
