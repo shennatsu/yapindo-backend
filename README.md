@@ -119,8 +119,11 @@ Redis caches the three read-heavy, unauthenticated-by-role endpoints — `GET /p
 
 ## API Documentation
 
-Import `postman/yapindo-task-management.postman_collection.json` into Postman. Set the collection variable `base_url` to `http://localhost:3333` (default). Run the **Login** request first (either seeded admin or user credentials — see [Database Seeding](#database-seeding)); its test script automatically captures the returned JWT into the `{{token}}` collection variable, which every other request uses automatically via its Authorization header.
+Import `postman/yapindo-task-management.postman_collection.json` into Postman. Set the collection variable `base_url` to `http://localhost:3333` (default). 
 
+The collection is designed to be fully executable via **Postman Runner (Run Collection)** from top to bottom, resulting in 100% green checks:
+- The **Login** request automatically captures the returned JWT into the `{{token}}` collection variable via a test script, so every other request authenticates automatically.
+- The **Create Project** request captures its response ID into a `{{new_project_id}}` variable, which the subsequent Update and Delete requests use. This deliberately leaves the original seeded Project 1 untouched, ensuring that the AI Command endpoints (which explicitly target Project 1 and Task 5 per the technical spec) have the required data to pass successfully.
 ## Project Structure
 
 ```
