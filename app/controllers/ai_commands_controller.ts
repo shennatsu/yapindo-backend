@@ -5,6 +5,7 @@ import { validateTaskCommands } from '#ai/task_command_validator'
 import { TASK_COMMAND_SYSTEM_PROMPT, taskCommandResponseSchema } from '#ai/task_command_prompt'
 import geminiService from '#services/gemini_service'
 import taskCommandExecutor from '#services/task_command_executor'
+import cacheService from '#services/cache_service'
 import TaskCommandExecutionException from '#exceptions/task_command_execution_exception'
 
 const AI_COMMAND_ACTION = 'AI_COMMAND'
@@ -29,16 +30,8 @@ export default class AiCommandsController {
         taskCommandResponseSchema
       )
     } catch (error: any) {
-      await this.#audit(
-        auth.user!.id,
-        prompt,
-        null,
-        'failed',
-        `Gemini API call failed: ${error.message}`
-      )
-      return response.badRequest({
-        message: 'Failed to process the instruction. Please try again.',
-      })
+      await this.#audit(auth.user!.id, prompt, null, 'failed', `Gemini API call failed: ${error.message}`)
+      return response.badRequest({ message: 'Failed to process the instruction. Please try again.' })
     }
 
     const validation = validateTaskCommands(rawResponse)
@@ -49,6 +42,7 @@ export default class AiCommandsController {
 
     try {
       const results = await taskCommandExecutor.execute(validation.data)
+      await this.#invalidateTaskCaches(results)
       await this.#audit(auth.user!.id, prompt, rawResponse, 'success')
 
       return response.ok({ data: results })
@@ -58,14 +52,22 @@ export default class AiCommandsController {
         return response.badRequest({ message: error.message })
       }
 
-      await this.#audit(
-        auth.user!.id,
-        prompt,
-        rawResponse,
-        'failed',
-        'Unexpected error while executing commands'
-      )
+      await this.#audit(auth.user!.id, prompt, rawResponse, 'failed', 'Unexpected error while executing commands')
       throw error
+    }
+  }
+
+  /**
+   * Invalidates the task-list cache for every distinct project a
+   * successful batch touched. A single prompt can reference multiple
+   * projects across its commands, so this dedupes before invalidating
+   * rather than assuming one project per call.
+   */
+  async #invalidateTaskCaches(results: Awaited<ReturnType<typeof taskCommandExecutor.execute>>) {
+    const projectIds = new Set(results.map((result) => result.projectId))
+
+    for (const projectId of projectIds) {
+      await cacheService.forget(`projects:${projectId}:tasks`)
     }
   }
 
@@ -80,8 +82,7 @@ export default class AiCommandsController {
       userId,
       action: AI_COMMAND_ACTION,
       requestPayload: { prompt },
-      responsePayload:
-        responsePayload === null ? null : (responsePayload as Record<string, unknown>),
+      responsePayload: responsePayload === null ? null : (responsePayload as Record<string, unknown>),
       status,
       failedReason: failedReason ?? null,
     })

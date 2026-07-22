@@ -9,6 +9,7 @@ import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
 export interface TaskCommandResult {
   action: TaskCommand['action']
   taskId: number
+  projectId: number
 }
 
 /**
@@ -18,6 +19,12 @@ export interface TaskCommandResult {
  * its mutation always see the same snapshot. Any failure throws
  * TaskCommandExecutionException, which Lucid automatically rolls
  * the whole batch back on.
+ *
+ * Results carry projectId so callers (AiCommandsController) can
+ * invalidate the correct projects:{id}:tasks cache key per project
+ * actually touched by the batch - resolved from the task row
+ * already loaded during each command's existence check, not a
+ * second query.
  */
 class TaskCommandExecutor {
   async execute(commands: TaskCommand[]): Promise<TaskCommandResult[]> {
@@ -47,7 +54,9 @@ class TaskCommandExecutor {
 
     switch (command.action) {
       case 'create_task': {
-        const project = await Project.query({ client: trx }).where('id', command.projectId).first()
+        const project = await Project.query({ client: trx })
+          .where('id', command.projectId)
+          .first()
 
         if (!project) {
           throw new TaskCommandExecutionException(
@@ -67,7 +76,7 @@ class TaskCommandExecutor {
         })
         await task.save()
 
-        return { action: 'create_task', taskId: task.id }
+        return { action: 'create_task', taskId: task.id, projectId: task.projectId }
       }
 
       case 'update_task': {
@@ -89,7 +98,7 @@ class TaskCommandExecutor {
         })
         await task.save()
 
-        return { action: 'update_task', taskId: task.id }
+        return { action: 'update_task', taskId: task.id, projectId: task.projectId }
       }
 
       case 'delete_task': {
@@ -101,10 +110,12 @@ class TaskCommandExecutor {
           )
         }
 
+        const projectId = task.projectId
+
         task.useTransaction(trx)
         await task.delete()
 
-        return { action: 'delete_task', taskId: command.taskId }
+        return { action: 'delete_task', taskId: command.taskId, projectId }
       }
     }
   }
