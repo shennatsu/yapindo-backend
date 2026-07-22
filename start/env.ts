@@ -36,4 +36,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   GEMINI_API_KEY: Env.schema.string(),
   GEMINI_MODEL: Env.schema.string.optional(),
   JWT_EXPIRES_IN: Env.schema.string.optional(),
+
+  REDIS_HOST: Env.schema.string.optional(),
+  REDIS_PORT: Env.schema.string.optional(),
+  REDIS_PASSWORD: Env.schema.string.optional(),
 })

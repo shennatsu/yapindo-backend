@@ -45,6 +45,7 @@ export default defineConfig({
     () => import('@adonisjs/lucid/database_provider'),
     () => import('@adonisjs/cors/cors_provider'),
     () => import('#providers/api_provider'),
+    () => import('@adonisjs/redis/redis_provider')
   ],
 
   /*
